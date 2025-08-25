@@ -1,0 +1,83 @@
+export const userData = [
+    {
+        "id": 123457,
+        "name": "Alice",
+        "email": "Alice@example.com",
+        "age": 28,
+        "city": "Othertown",
+        "state": "TX",
+    },
+    {
+        "id": 123458,
+        "name": "Bob",
+        "email": "Bob@example.com",
+        "age": 35,
+        "city": "Sometown",
+        "state": "FL"
+    },
+    {
+        "id": 123459,
+        "name": "Carol",
+        "email": "Carol@example.com",
+        "age": 32,
+        "city": "Anycity",
+        "state": "NY",
+    },
+    {
+        "id": 123460,
+        "name": "David",
+        "email": "David@example.com",
+        "age": 29,
+        "city": "Newtown",
+        "state": "WA",
+    },
+    {
+        "id": 123461,
+        "name": "Eve",
+        "email": "Eve@example.com",
+        "age": 27,
+        "city": "Oldtown",
+        "state": "IL",
+    },
+    {
+        "id": 123462,
+        "name": "Frank",
+        "email": "Frank@example.com",
+        "age": 40,
+        "city": "Smalltown",
+        "state": "OH",
+     
+    },
+    {
+        "id": 123463,
+        "name": "Grace",
+        "email": "Grace@example.com",
+        "age": 33,
+        "city": "Bigcity",
+        "state": "MI",
+    },
+    {
+        "id": 123464,
+        "name": "Hank",
+        "email": "Hank@example.com",
+        "age": 31,
+        "city": "Largetown",
+        "state": "GA",
+    },
+    {
+        "id": 123465,
+        "name": "Ivy",
+        "email": "Ivy@example.com",
+        "age": 26,
+        "city": "Middletown",
+        "state": "NC",
+    },
+    {
+        "id": 123466,
+        "name": "Jack",
+        "email": "Jack@example.com",
+        "age": 38,
+        "city": "Hometown",
+        "state": "PA",
+    }
+]

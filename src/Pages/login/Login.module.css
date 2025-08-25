@@ -1,0 +1,118 @@
+body{
+    background: rgb(243, 243, 243);
+    height: 100vh;
+    width: 100%;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+h4{
+    font-family: 'Segoe UI', bold;
+    font-size: 35px;
+    margin: 1rem;
+}
+
+form{
+    display: inline-block;
+    align-items: center;
+    height: auto;
+    width: 350px;
+    margin-bottom: 170px;
+}
+
+.card {
+    margin: 20px;
+}
+
+.text_area{
+    align-content: center;
+    border-radius: 22px;
+    margin-bottom: 35px;
+    width: 100%;
+    height: 64px;
+    box-shadow: 0 0 8px 0 rgba(0, 0, 0, 0.2), 0 0 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.text_input{
+    margin-top: 1.2rem;
+    font-family: 'Montserrat regular';
+    font-size: 20px;
+    border: none;
+    width: 80%;
+}
+
+.btn{
+    margin-top: 28px;
+    width: 145px;
+    height: 40px;
+    border-radius: 30px;
+    background: #cfcfcf;
+    border: none;
+    font-family: 'roboto';
+    font-size: 20px;
+    color: #181818;
+    cursor: pointer;
+}
+
+.login{
+    display: inline-block;
+    background: #FFFFFF;
+    width: 434px;
+    height: auto;
+    margin-top: 10%;
+    border-radius: 22px;
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.link{
+    color: #0E4579;
+    font-family: 'Montserrat light';
+    font-size: 18px;
+    cursor: pointer;
+    display: block;
+    text-decoration: none;
+}
+
+.label {
+    color: rgb(0, 0, 0);
+    text-align: start;
+}
+
+.formGroup {
+    margin-bottom: 10px;
+    text-align: start;
+}
+
+.formLabel {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.inputField {
+    width: 90%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+.inputField:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+.errorMessage {
+    color: red;
+    font-size: 14px;
+    margin-top: 5px;
+    margin-left: 0.5em;
+}
+
+.label .error {
+    color: red;
+}

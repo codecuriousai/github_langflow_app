@@ -1,0 +1,378 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f7f7f7;
+    color: #333;
+}
+
+.detailContainer {
+    width: 90%;
+    margin: 20px auto;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.breadcrumb {
+    font-size: 14px;
+    margin-bottom: 20px;
+    color: #555;
+}
+
+.breadcrumb a {
+    color: #777;
+    text-decoration: none;
+}
+
+.breadcrumb span {
+    color: #000;
+}
+
+.productDetail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    align-items: start;
+    justify-content: center;
+}
+
+.productImages {
+    flex: 1;
+    padding-top: 5em;
+    display: flex ;
+    flex-direction: column;
+    align-items: center;
+}
+
+.mainImage {
+    width: 80%;
+    height: 80%;
+    border-radius: 8px;
+}
+
+.thumbnailImages {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.thumbnailImages img {
+    width: 60px;
+    height: 60px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.productInfo {
+    flex: 1.5;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 20px;
+    text-align: start;
+}
+
+.productInfo h1 {
+    font-size: 28px;
+    margin-bottom: 15px;
+    color: #000;
+}
+
+.sku {
+    font-size: 14px;
+    color: #999;
+}
+
+.price {
+    font-size: 30px;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.paymentInfo {
+    font-size: 14px;
+    color: #555;
+    padding-bottom: 20px;
+}
+
+.paymentInfo a {
+    text-decoration: none;
+    color: #000;
+}
+
+.options {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 20px;
+}
+
+.optionLabel {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.optionButtons {
+    display: flex;
+    gap: 10px;
+}
+
+.optionButtons button {
+    padding: 10px 20px;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.optionButtons button.active {
+    border-color: #f4b400;
+    background: #f4b400;
+    color: #fff;
+    font-weight: bold;
+}
+
+/* Quantity section */
+.quantitySection {
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+}
+
+.quantitySection button {
+    padding: 10px 15px;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.quantityInput {
+    width: 50px;
+    text-align: center;
+    margin: 0 10px;
+    border: 1px solid #e6e6e6;
+    border-radius: 5px;
+    padding: 10px 15px;
+}
+
+/* Actions */
+.actionsWrapper {
+    display: flex;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 20px;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}
+
+.actions button {
+    padding: 10px 15px;
+    font-size: 16px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+.addToCart {
+    background: #f4b400;
+    color: #fff;
+}
+
+.buyNow {
+    background: #b12704;
+    color: #fff;
+}
+
+.wishlist {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.tabs {
+    margin-top: 20px;
+    border-bottom: 1px solid #ddd;
+}
+
+.tabs button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    margin-right: 20px;
+    padding: 10px 0;
+    border-bottom: 2px solid transparent;
+}
+
+.tabs button.active {
+    border-color: #000;
+    font-weight: bold;
+}
+
+.tabContent {
+    margin-top: 20px;
+    font-size: 14px;
+    color: #555;
+    line-height: 1.8;
+}
+
+.additionalInfo {
+    font-size: 14px;
+    margin-top: 20px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 20px;
+}
+
+.reviews {
+    margin-top: 40px;
+}
+
+.reviews h2 {
+    font-size: 20px;
+    margin-bottom: 20px;
+}
+
+.reviews p {
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.reviewContainer {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: 2rem
+}
+
+.reviewComment {
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+    border: 1px solid #e0e0e0;
+    padding: 1.5em;
+    border-radius: 10px;
+    box-shadow: 1px 1px 12px 0px #e6e6e6;
+}
+
+.relatedProducts {
+    margin-top: 40px;
+}
+
+.relatedProducts h2 {
+    font-size: 20px;
+    margin-bottom: 15px;
+}
+
+.relatedProducts .product {
+    display: inline-block;
+    width: 200px;
+    text-align: center;
+    margin-right: 20px;
+}
+
+.relatedProducts img {
+    width: 100%;
+    border-radius: 8px;
+}
+
+.relatedProducts p {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+footer {
+    margin-top: 40px;
+    padding: 20px 0;
+    text-align: center;
+    font-size: 14px;
+    color: #777;
+}
+
+footer a {
+    color: #555;
+    text-decoration: none;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    footer {
+        margin-top: 0px;
+    }
+
+    .reviews {
+        text-align: center;
+        margin-top: 0;
+    }
+
+    .relatedProducts {
+        margin-top: 0px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .productDetail {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .productImages,
+    .productInfo {
+        flex: none;
+        width: 100%;
+    }
+
+    .productInfo h1 {
+        font-size: 22px;
+    }
+
+    .price {
+        font-size: 24px;
+    }
+
+    .actionsWrapper {
+        display: flex;
+        border-bottom: 1px solid #ddd;
+        flex-direction: column;
+        padding-bottom: 20px;
+    }
+
+    .actions {
+        margin-top: 20px;
+    }
+
+    .actionButtons {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .quantitySection {
+        padding-bottom: 20px;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .wishlist {
+        justify-content: center;
+    }
+
+    .tabs {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .thumbnailImages img {
+        width: 50px;
+        height: 50px;
+    }
+}
