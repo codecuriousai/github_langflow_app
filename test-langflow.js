@@ -4,7 +4,7 @@ const fetch = require('node-fetch');
 async function testLangflow() {
   try {
     const testData = {
-      title: "Test PR",
+      title: "Testing PR",
       description: "This is a test",
       author: "test-user"
     };
