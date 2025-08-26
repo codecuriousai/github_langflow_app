@@ -26,7 +26,7 @@ async function testLangflow() {
     console.log('Langflow Response:', result);
     
   } catch (error) {
-    console.error('Test failed:', error);
+    console.error('Test failed', error);
   }
 }
 
