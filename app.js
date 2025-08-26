@@ -517,7 +517,7 @@ async function handleReviewRequest(payload) {
         "GitHubBranchPRsFetcher-2MPWZ": {
           repo_url: `https://github.com/${payload.repository.owner.login}/${payload.repository.name}`,
           branch_name: pr.data.head.ref,
-          github_token: "",
+          github_token: process.env.GITHUB_TOKEN,
           per_page: 30,
           max_pages: 5,
           pr_number: prNumber
@@ -735,7 +735,7 @@ async function handleMergeCheck(payload) {
         "GitHubOpenPRsFetcher-yZc4z": {
           repo_url: `https://github.com/${payload.repository.owner.login}/${payload.repository.name}`,
           branch_name: pr.data.head.ref,
-          github_token: "",
+          github_token: process.env.GITHUB_TOKEN,
           per_page: 30,
           max_pages: 5,
           pr_number: prNumber
