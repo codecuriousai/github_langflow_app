@@ -214,48 +214,53 @@ async function getOctokit() {
     
     console.log('Parsed installation ID:', installationId);
     
-    // In @octokit/app v14+, getInstallationOctokit returns a simple auth object
-    // We need to extract the token and create our own Octokit instance
-    const installationAuth = await githubApp.getInstallationOctokit(installationId);
-    
-    console.log('Installation auth created');
-    console.log('Auth type:', typeof installationAuth);
-    console.log('Auth keys:', Object.keys(installationAuth || {}));
-    
-    // Check if this is already a full Octokit instance (unlikely in v14+)
-    if (installationAuth && installationAuth.rest && installationAuth.rest.checks) {
-      console.log('Got full Octokit instance from getInstallationOctokit');
-      return installationAuth;
-    }
-    
-    // For v14+, we need to create the token manually using the GitHub App
-    console.log('Creating installation access token manually...');
-    
-    // Use the GitHub App's authenticate method to get an app token first
-    const appAuth = await githubApp.getInstallationOctokit(0); // Use 0 for app-level auth
-    let appOctokit;
-    
+    // Try the new @octokit/app v14+ approach first
     try {
-      // Try to get app-level authentication
-      appOctokit = new Octokit({
-        authStrategy: githubApp.octokit.auth.strategy,
-        auth: {
-          appId: process.env.GITHUB_APP_ID,
-          privateKey: privateKey,
-          type: 'app'
-        }
-      });
-    } catch (strategyError) {
-      console.log('Strategy auth failed, trying direct app auth');
-      // Fallback to direct app authentication
-      appOctokit = new Octokit({
-        auth: {
-          appId: process.env.GITHUB_APP_ID,
-          privateKey: privateKey,
-          type: 'app'
-        }
-      });
+      console.log('Trying @octokit/app v14+ getInstallationOctokit...');
+      const installationOctokit = await githubApp.getInstallationOctokit(installationId);
+      
+      console.log('Installation Octokit created via getInstallationOctokit');
+      console.log('Type:', typeof installationOctokit);
+      console.log('Has rest:', !!installationOctokit.rest);
+      console.log('Has checks:', !!installationOctokit.rest?.checks);
+      console.log('Has pulls:', !!installationOctokit.rest?.pulls);
+      console.log('Has issues:', !!installationOctokit.rest?.issues);
+      
+      // Verify the structure - if it's a complete Octokit instance, return it
+      if (installationOctokit && installationOctokit.rest && 
+          installationOctokit.rest.checks && installationOctokit.rest.pulls) {
+        console.log('Successfully got full Octokit instance from getInstallationOctokit');
+        return installationOctokit;
+      } else {
+        throw new Error('getInstallationOctokit returned incomplete instance');
+      }
+      
+    } catch (getInstallationError) {
+      console.log('getInstallationOctokit failed:', getInstallationError.message);
+      console.log('Falling back to manual JWT approach...');
     }
+    
+    // Fallback: Manual JWT token creation approach
+    console.log('Creating JWT token manually...');
+    
+    // Import JWT library for manual token creation
+    const jwt = require('jsonwebtoken');
+    
+    // Create JWT for GitHub App
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iat: now - 60, // issued 60 seconds ago
+      exp: now + (10 * 60), // expires in 10 minutes
+      iss: process.env.GITHUB_APP_ID,
+    };
+    
+    const appToken = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
+    console.log('JWT created successfully');
+    
+    // Create app-level Octokit instance with JWT
+    const appOctokit = new Octokit({
+      auth: appToken,
+    });
     
     console.log('App-level Octokit created');
     
@@ -264,15 +269,15 @@ async function getOctokit() {
       installation_id: installationId,
     });
     
-    console.log('Installation access token created');
+    console.log('Installation access token created via JWT');
     console.log('Token expires at:', tokenData.expires_at);
     
-    // Create full Octokit REST client with the installation token
+    // Create installation Octokit instance with the token
     const octokit = new Octokit({
       auth: tokenData.token,
     });
     
-    console.log('Installation Octokit REST client created');
+    console.log('Installation Octokit REST client created via JWT');
     console.log('Octokit type:', typeof octokit);
     console.log('Has rest:', !!octokit.rest);
     console.log('Has checks:', !!octokit.rest?.checks);
@@ -281,61 +286,49 @@ async function getOctokit() {
     
     // Verify the structure
     if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
-      throw new Error('Installation Octokit is missing required REST methods');
+      throw new Error('JWT-created Octokit is missing required REST methods');
     }
     
-    console.log('Successfully created installation Octokit with all required methods');
+    console.log('Successfully created installation Octokit with JWT approach');
     return octokit;
     
   } catch (error) {
-    console.error('Error creating Octokit instance:', error);
+    console.error('All Octokit creation methods failed:', error);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack ? error.stack.split('\n').slice(0, 5).join('\n') : 'No stack'
+    });
     
-    // Ultimate fallback: Use JWT token directly
+    // Final attempt: Try using @octokit/auth-app directly
     try {
-      console.log('Trying ultimate fallback with JWT...');
+      console.log('Final attempt: Using @octokit/auth-app directly...');
+      const { createAppAuth } = require('@octokit/auth-app');
       
-      // Import JWT library for manual token creation
-      const jwt = require('jsonwebtoken');
-      
-      // Create JWT for GitHub App
-      const now = Math.floor(Date.now() / 1000);
-      const payload = {
-        iat: now - 60, // issued 60 seconds ago
-        exp: now + (10 * 60), // expires in 10 minutes
-        iss: process.env.GITHUB_APP_ID,
-      };
-      
-      const appToken = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
-      
-      console.log('JWT created');
-      
-      // Use JWT to create installation token
-      const appOctokit = new Octokit({
-        auth: appToken,
+      const auth = createAppAuth({
+        appId: process.env.GITHUB_APP_ID,
+        privateKey: privateKey,
+        installationId: parseInt(process.env.GITHUB_INSTALLATION_ID, 10),
       });
       
-      const installationId = parseInt(process.env.GITHUB_INSTALLATION_ID, 10);
-      const { data: tokenData } = await appOctokit.rest.apps.createInstallationAccessToken({
-        installation_id: installationId,
-      });
-      
-      console.log('Installation token created via JWT');
+      const installationAuth = await auth({ type: 'installation' });
+      console.log('Installation auth created with @octokit/auth-app');
       
       const octokit = new Octokit({
-        auth: tokenData.token,
+        auth: installationAuth.token,
       });
       
       // Verify
       if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
-        throw new Error('JWT fallback Octokit is missing required methods');
+        throw new Error('@octokit/auth-app created Octokit is missing required methods');
       }
       
-      console.log('JWT fallback successful');
+      console.log('@octokit/auth-app approach successful');
       return octokit;
       
-    } catch (jwtError) {
-      console.error('JWT fallback also failed:', jwtError);
-      throw new Error(`All authentication methods failed. Primary: ${error.message}, JWT: ${jwtError.message}`);
+    } catch (authAppError) {
+      console.error('@octokit/auth-app approach also failed:', authAppError);
+      throw new Error(`All authentication methods failed. Original: ${error.message}, Auth-app: ${authAppError.message}`);
     }
   }
 }
