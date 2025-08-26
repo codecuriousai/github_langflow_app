@@ -26,7 +26,7 @@ app.use(express.json());
 
 // Health check endpoint
 app.get('/', (req, res) => {
-  res.json({ status: 'AI PR Review Bot is running!' });
+  res.json({ status: 'AI PR Review Bot is running' });
 });
 
 // Webhook endpoint
