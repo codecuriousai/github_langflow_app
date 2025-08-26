@@ -7,8 +7,18 @@ const fetch = require('node-fetch');
 
 const app = express();
 
-// Load private key
-const privateKey = fs.readFileSync(process.env.GITHUB_PRIVATE_KEY_PATH, 'utf8');
+// Load private key (works both locally and in production)
+let privateKey;
+if (process.env.GITHUB_PRIVATE_KEY) {
+  // Production: use environment variable
+  privateKey = process.env.GITHUB_PRIVATE_KEY;
+} else if (process.env.GITHUB_PRIVATE_KEY_PATH) {
+  // Local development: use file path
+  privateKey = fs.readFileSync(process.env.GITHUB_PRIVATE_KEY_PATH, 'utf8');
+} else {
+  // Fallback: try default file
+  privateKey = fs.readFileSync('./private-key.pem', 'utf8');
+}
 
 // Create GitHub App instance
 const githubApp = new App({
