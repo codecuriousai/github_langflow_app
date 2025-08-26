@@ -7,8 +7,18 @@ const fetch = require('node-fetch');
 
 const app = express();
 
-// Load private key
-const privateKey = fs.readFileSync(process.env.GITHUB_PRIVATE_KEY_PATH, 'utf8');
+// Load private key (works both locally and in production)
+let privateKey;
+if (process.env.GITHUB_PRIVATE_KEY) {
+  // Production: use environment variable
+  privateKey = process.env.GITHUB_PRIVATE_KEY;
+} else if (process.env.GITHUB_PRIVATE_KEY_PATH) {
+  // Local development: use file path
+  privateKey = fs.readFileSync(process.env.GITHUB_PRIVATE_KEY_PATH, 'utf8');
+} else {
+  // Fallback: try default file
+  privateKey = fs.readFileSync('./private-key.pem', 'utf8');
+}
 
 // Create GitHub App instance
 const githubApp = new App({
@@ -71,7 +81,7 @@ webhooks.on('check_run.requested_action', async ({ payload }) => {
 async function addReviewButton(payload) {
   try {
     const octokit = await githubApp.getInstallationOctokit(
-      process.env.GITHUB_INSTALLATION_ID
+      parseInt(process.env.GITHUB_INSTALLATION_ID)
     );
 
     await octokit.rest.checks.create({
@@ -114,7 +124,7 @@ async function handleReviewRequest(payload) {
     console.log('Starting AI review...');
     
     const octokit = await githubApp.getInstallationOctokit(
-      process.env.GITHUB_INSTALLATION_ID
+      parseInt(process.env.GITHUB_INSTALLATION_ID)
     );
 
     // Update check run to show "in progress"
@@ -212,7 +222,7 @@ ${reviewResult.message || 'Review completed successfully'}
     
     // Update check run with error
     const octokit = await githubApp.getInstallationOctokit(
-      process.env.GITHUB_INSTALLATION_ID
+      parseInt(process.env.GITHUB_INSTALLATION_ID)
     );
     
     await octokit.rest.checks.update({
@@ -236,7 +246,7 @@ async function handleMergeCheck(payload) {
     console.log('Starting merge readiness check...');
     
     const octokit = await githubApp.getInstallationOctokit(
-      process.env.GITHUB_INSTALLATION_ID
+      parseInt(process.env.GITHUB_INSTALLATION_ID)
     );
 
     const prNumber = payload.check_run.pull_requests[0].number;
@@ -348,7 +358,6 @@ async function triggerLangflow(data, flowId) {
   }
 }
 
-// random comment adding for testing
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
