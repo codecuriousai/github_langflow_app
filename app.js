@@ -415,50 +415,128 @@ async function handleMergeCheck(payload) {
 }
 
 // Function to trigger Langflow
+// async function triggerLangflow(data, flowId) {
+//   try {
+//     console.log(`🔗 Triggering Langflow flow: ${flowId}`);
+    
+//     if (!process.env.LANGFLOW_ENDPOINT || !flowId) {
+//       throw new Error('Langflow endpoint or flow ID not configured');
+//     }
+    
+//     const response = await fetch(`${process.env.LANGFLOW_ENDPOINT}/api/v1/run/${flowId}`, {
+//       method: 'POST',
+//       headers: {
+//         'Content-Type': 'application/json',
+//         'Authorization': `Bearer ${process.env.LANGFLOW_API_KEY}`,
+//       },
+//       body: JSON.stringify({
+//         input_value: JSON.stringify(data),
+//         output_type: 'chat',
+//         input_type: 'chat'
+//       }),
+//     });
+
+//     if (!response.ok) {
+//       const errorText = await response.text();
+//       throw new Error(`Langflow API error: ${response.status} - ${errorText}`);
+//     }
+
+//     const result = await response.json();
+//     console.log('📥 Langflow response received');
+    
+//     return {
+//       success: true,
+//       message: result.outputs?.[0]?.outputs?.[0]?.results?.message?.text || 'Analysis completed successfully',
+//       data: result
+//     };
+    
+//   } catch (error) {
+//     console.error('🔴 Langflow error:', error);
+//     return {
+//       success: false,
+//       error: error.message
+//     };
+//   }
+// }
+
+// Updated function specifically for Langflow Astra (DataStax)
 async function triggerLangflow(data, flowId) {
   try {
-    console.log(`🔗 Triggering Langflow flow: ${flowId}`);
+    console.log(`Triggering Langflow Astra flow: ${flowId}`);
+    console.log(`Base endpoint: ${process.env.LANGFLOW_ENDPOINT}`);
     
-    if (!process.env.LANGFLOW_ENDPOINT || !flowId) {
-      throw new Error('Langflow endpoint or flow ID not configured');
-    }
+    // Langflow Astra API endpoint format
+    const apiUrl = `${process.env.LANGFLOW_ENDPOINT}/run/${flowId}`;
+    console.log(`Full API URL: ${apiUrl}`);
     
-    const response = await fetch(`${process.env.LANGFLOW_ENDPOINT}/api/v1/run/${flowId}`, {
+    const requestBody = {
+      input_value: JSON.stringify(data),
+      output_type: 'chat',
+      input_type: 'chat',
+      tweaks: {},
+      stream: false
+    };
+    
+    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.LANGFLOW_API_KEY}`,
+        'User-Agent': 'GitHub-App-Bot/1.0',
       },
-      body: JSON.stringify({
-        input_value: JSON.stringify(data),
-        output_type: 'chat',
-        input_type: 'chat'
-      }),
+      body: JSON.stringify(requestBody),
     });
 
+    console.log(`Response status: ${response.status}`);
+    console.log(`Response headers:`, Object.fromEntries(response.headers));
+    
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Langflow API error: ${response.status} - ${errorText}`);
+      console.error(`Langflow API error: ${response.status} - ${errorText}`);
+      throw new Error(`Langflow API error: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
-    console.log('📥 Langflow response received');
+    console.log('Langflow response:', JSON.stringify(result, null, 2));
+    
+    // Extract message from Langflow Astra response format
+    let message = 'Analysis completed';
+    
+    if (result.outputs && result.outputs.length > 0) {
+      const output = result.outputs[0];
+      if (output.outputs && output.outputs.length > 0) {
+        const innerOutput = output.outputs[0];
+        if (innerOutput.results && innerOutput.results.message) {
+          message = innerOutput.results.message.text || innerOutput.results.message;
+        } else if (innerOutput.artifacts && innerOutput.artifacts.length > 0) {
+          message = innerOutput.artifacts[0].data || message;
+        }
+      }
+    }
+    
+    // Fallback: try to find text in different response formats
+    if (message === 'Analysis completed' && result.result) {
+      message = result.result;
+    } else if (message === 'Analysis completed' && result.message) {
+      message = result.message;
+    }
     
     return {
       success: true,
-      message: result.outputs?.[0]?.outputs?.[0]?.results?.message?.text || 'Analysis completed successfully',
+      message: message,
       data: result
     };
     
   } catch (error) {
-    console.error('🔴 Langflow error:', error);
+    console.error('Langflow error:', error);
     return {
       success: false,
       error: error.message
     };
   }
 }
-
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Unhandled error:', error);
