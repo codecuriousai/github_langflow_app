@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const { App } = require('@octokit/app');
 const { Webhooks } = require('@octokit/webhooks');
+const { Octokit } = require('@octokit/rest');
 const fs = require('fs');
 const fetch = require('node-fetch');
 
@@ -114,57 +115,40 @@ async function getOctokit() {
     
     console.log('Parsed installation ID:', installationId);
     
-    const octokit = await githubApp.getInstallationOctokit(installationId);
-    console.log('Octokit instance created successfully');
+    // Get the installation authentication
+    const installationAuth = await githubApp.getInstallationOctokit(installationId);
+    console.log('Installation auth created successfully');
     
     // Debug the structure
-    console.log('Octokit type:', typeof octokit);
-    console.log('Octokit keys:', Object.keys(octokit || {}));
+    console.log('InstallationAuth type:', typeof installationAuth);
+    console.log('InstallationAuth keys:', Object.keys(installationAuth || {}));
     
-    // Verify the structure - try different possible structures
-    if (!octokit) {
-      throw new Error('Octokit instance is null or undefined');
+    if (!installationAuth) {
+      throw new Error('Installation auth is null or undefined');
     }
+
+    // In v14+, we need to create a full Octokit REST client
+    // Get the auth function from the installation
+    const auth = await installationAuth.auth();
+    console.log('Auth token obtained:', auth.token ? 'YES' : 'NO');
     
-    // Check for rest property
-    if (octokit.rest) {
-      console.log('Found octokit.rest');
-      console.log('Rest keys:', Object.keys(octokit.rest));
-      
-      if (!octokit.rest.checks) {
-        console.error('Missing octokit.rest.checks');
-        console.log('Available rest methods:', Object.keys(octokit.rest));
-      }
-      
-      if (!octokit.rest.pulls) {
-        console.error('Missing octokit.rest.pulls');
-      }
-      
-      return octokit;
-    }
-    
-    // Alternative structure check (some versions might have different structure)
-    if (octokit.checks && octokit.pulls) {
-      console.log('Found direct methods on octokit');
-      // Wrap in rest-like structure for compatibility
-      return {
-        rest: {
-          checks: octokit.checks,
-          pulls: octokit.pulls,
-          issues: octokit.issues
-        }
-      };
-    }
-    
-    console.error('Unknown Octokit structure:', {
-      type: typeof octokit,
-      keys: Object.keys(octokit),
-      hasRest: !!octokit.rest,
-      hasChecks: !!octokit.checks,
-      hasPulls: !!octokit.pulls
+    // Create a full Octokit REST client with the auth token
+    const octokit = new Octokit({
+      auth: auth.token,
     });
     
-    throw new Error('Invalid Octokit instance structure');
+    console.log('Full Octokit REST client created successfully');
+    console.log('Octokit rest keys:', Object.keys(octokit.rest));
+    console.log('Has checks:', !!octokit.rest.checks);
+    console.log('Has pulls:', !!octokit.rest.pulls);
+    console.log('Has issues:', !!octokit.rest.issues);
+    
+    // Verify the structure
+    if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
+      throw new Error('Octokit REST client is missing required methods');
+    }
+    
+    return octokit;
     
   } catch (error) {
     console.error('Error creating Octokit instance:', error);
