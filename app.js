@@ -12,7 +12,7 @@ const app = express();
 let privateKey;
 if (process.env.GITHUB_PRIVATE_KEY) {
   // Production: use environment variable
-  privateKey = process.env.GITHUB_PRIVATE_KEY;
+  privateKey = process.env.GITHUB_PRIVATE_KEY.replace(/\\n/g, '\n');
 } else if (process.env.GITHUB_PRIVATE_KEY_PATH) {
   // Local development: use file path
   privateKey = fs.readFileSync(process.env.GITHUB_PRIVATE_KEY_PATH, 'utf8');
@@ -100,7 +100,7 @@ webhooks.on('check_run.requested_action', async ({ payload }) => {
   }
 });
 
-// Function to get proper Octokit instance
+// Function to get proper Octokit instance - FIXED VERSION
 async function getOctokit() {
   try {
     console.log('Getting Octokit instance...');
@@ -115,37 +115,25 @@ async function getOctokit() {
     
     console.log('Parsed installation ID:', installationId);
     
-    // Get the installation authentication
-    const installationAuth = await githubApp.getInstallationOctokit(installationId);
-    console.log('Installation auth created successfully');
+    // FIXED: Use the correct method to get an authenticated Octokit instance
+    const octokit = await githubApp.getInstallationOctokit(installationId);
     
-    // Debug the structure
-    console.log('InstallationAuth type:', typeof installationAuth);
-    console.log('InstallationAuth keys:', Object.keys(installationAuth || {}));
+    console.log('Installation Octokit created successfully');
+    console.log('Octokit type:', typeof octokit);
+    console.log('Octokit keys:', Object.keys(octokit || {}));
     
-    if (!installationAuth) {
-      throw new Error('Installation auth is null or undefined');
+    if (!octokit) {
+      throw new Error('Failed to create installation Octokit instance');
     }
 
-    // In v14+, we need to create a full Octokit REST client
-    // Get the auth function from the installation
-    const auth = await installationAuth.auth();
-    console.log('Auth token obtained:', auth.token ? 'YES' : 'NO');
+    // Verify the structure - getInstallationOctokit returns a full Octokit instance
+    console.log('Has rest:', !!octokit.rest);
+    console.log('Has checks:', !!octokit.rest?.checks);
+    console.log('Has pulls:', !!octokit.rest?.pulls);
+    console.log('Has issues:', !!octokit.rest?.issues);
     
-    // Create a full Octokit REST client with the auth token
-    const octokit = new Octokit({
-      auth: auth.token,
-    });
-    
-    console.log('Full Octokit REST client created successfully');
-    console.log('Octokit rest keys:', Object.keys(octokit.rest));
-    console.log('Has checks:', !!octokit.rest.checks);
-    console.log('Has pulls:', !!octokit.rest.pulls);
-    console.log('Has issues:', !!octokit.rest.issues);
-    
-    // Verify the structure
     if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
-      throw new Error('Octokit REST client is missing required methods');
+      throw new Error('Octokit instance is missing required REST methods');
     }
     
     return octokit;
@@ -205,7 +193,7 @@ async function addReviewButton(payload) {
   }
 }
 
-// Function to handle review request
+// Function to handle review request - IMPROVED ERROR HANDLING
 async function handleReviewRequest(payload) {
   let octokit;
   
