@@ -69,7 +69,23 @@ webhooks.on('pull_request.synchronize', async ({ payload }) => {
 // Handle check run actions (button clicks)
 webhooks.on('check_run.requested_action', async ({ payload }) => {
   console.log('Button clicked:', payload.requested_action.identifier);
-
+  
+  // Debug: Log the entire payload structure
+  console.log('Full check_run payload:', JSON.stringify({
+    action: payload.action,
+    check_run: {
+      id: payload.check_run.id,
+      head_sha: payload.check_run.head_sha,
+      name: payload.check_run.name,
+      pull_requests: payload.check_run.pull_requests
+    },
+    requested_action: payload.requested_action,
+    repository: {
+      name: payload.repository.name,
+      owner: payload.repository.owner.login
+    }
+  }, null, 2));
+  
   if (payload.requested_action.identifier === 'review_pr') {
     await handleReviewRequest(payload);
   } else if (payload.requested_action.identifier === 'check_merge') {
@@ -122,7 +138,8 @@ async function addReviewButton(payload) {
 async function handleReviewRequest(payload) {
   try {
     console.log('Starting AI review...');
-
+    console.log('Payload check_run:', JSON.stringify(payload.check_run, null, 2));
+    
     const octokit = await githubApp.getInstallationOctokit(
       process.env.GITHUB_INSTALLATION_ID
     );
@@ -139,8 +156,29 @@ async function handleReviewRequest(payload) {
       },
     });
 
-    // Get PR details
-    const prNumber = payload.check_run.pull_requests[0].number;
+    // Get PR number with error handling
+    let prNumber;
+    if (payload.check_run.pull_requests && payload.check_run.pull_requests.length > 0) {
+      prNumber = payload.check_run.pull_requests[0].number;
+    } else {
+      // Alternative: Get PR from check run head SHA
+      console.log('No pull_requests in check_run, searching by SHA...');
+      const pulls = await octokit.rest.pulls.list({
+        owner: payload.repository.owner.login,
+        repo: payload.repository.name,
+        head: `${payload.repository.owner.login}:${payload.check_run.head_sha}`,
+        state: 'open'
+      });
+      
+      if (pulls.data.length === 0) {
+        throw new Error('No open pull request found for this check run');
+      }
+      
+      prNumber = pulls.data[0].number;
+      console.log(`Found PR #${prNumber} from SHA search`);
+    }
+    
+    console.log(`Processing PR #${prNumber}`);
     const pr = await octokit.rest.pulls.get({
       owner: payload.repository.owner.login,
       repo: payload.repository.name,
@@ -237,12 +275,12 @@ ${reviewResult.message || 'Review completed successfully'}
 
   } catch (error) {
     console.error('Error during review:', error);
-
+    
     // Update check run with error
     const octokit = await githubApp.getInstallationOctokit(
       process.env.GITHUB_INSTALLATION_ID
     );
-
+    
     await octokit.rest.checks.update({
       owner: payload.repository.owner.login,
       repo: payload.repository.name,
@@ -262,13 +300,36 @@ ${reviewResult.message || 'Review completed successfully'}
 async function handleMergeCheck(payload) {
   try {
     console.log('Starting merge readiness check...');
-
+    console.log('Merge check payload:', JSON.stringify(payload.check_run, null, 2));
+    
     const octokit = await githubApp.getInstallationOctokit(
       process.env.GITHUB_INSTALLATION_ID
     );
 
-    const prNumber = payload.check_run.pull_requests[0].number;
-
+    // Get PR number with error handling
+    let prNumber;
+    if (payload.check_run.pull_requests && payload.check_run.pull_requests.length > 0) {
+      prNumber = payload.check_run.pull_requests[0].number;
+    } else {
+      // Alternative: Get PR from check run head SHA
+      console.log('No pull_requests in merge check, searching by SHA...');
+      const pulls = await octokit.rest.pulls.list({
+        owner: payload.repository.owner.login,
+        repo: payload.repository.name,
+        head: `${payload.repository.owner.login}:${payload.check_run.head_sha}`,
+        state: 'open'
+      });
+      
+      if (pulls.data.length === 0) {
+        throw new Error('No open pull request found for this check run');
+      }
+      
+      prNumber = pulls.data[0].number;
+      console.log(`Found PR #${prNumber} from SHA search for merge check`);
+    }
+    
+    console.log(`Processing merge check for PR #${prNumber}`);
+    
     // Get PR details and previous review
     const pr = await octokit.rest.pulls.get({
       owner: payload.repository.owner.login,
@@ -283,7 +344,7 @@ async function handleMergeCheck(payload) {
       issue_number: prNumber,
     });
 
-    const reviewComment = comments.data.find(comment =>
+    const reviewComment = comments.data.find(comment => 
       comment.body.includes('AI Code Review Results')
     );
 
@@ -316,7 +377,7 @@ async function handleMergeCheck(payload) {
 
     if (mergeResult.success) {
       const isReady = mergeResult.message.toLowerCase().includes('ready');
-
+      
       await octokit.rest.checks.update({
         owner: payload.repository.owner.login,
         repo: payload.repository.name,
@@ -355,20 +416,20 @@ async function triggerLangflow(data, flowId) {
   try {
     console.log(`Triggering Langflow Astra flow: ${flowId}`);
     console.log(`Base endpoint: ${process.env.LANGFLOW_ENDPOINT}`);
-
+    
     // Langflow Astra API endpoint format
     const apiUrl = `${process.env.LANGFLOW_ENDPOINT}/run/${flowId}`;
     console.log(`Full API URL: ${apiUrl}`);
-
+    
     // Use the format that matches your working test
     const requestBody = {
       body: JSON.stringify(data),
       session_id: `github_${Date.now()}`,
       tweaks: data.tweaks || {}
     };
-
+    
     console.log('Enhanced request body:', JSON.stringify(requestBody, null, 2));
-
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -380,7 +441,7 @@ async function triggerLangflow(data, flowId) {
     });
 
     console.log(`Response status: ${response.status}`);
-
+    
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Langflow API error: ${response.status} - ${errorText}`);
@@ -389,10 +450,10 @@ async function triggerLangflow(data, flowId) {
 
     const result = await response.json();
     console.log('Langflow response structure:', JSON.stringify(result, null, 2));
-
+    
     // Extract message from Langflow Astra response format
     let message = 'Analysis completed successfully';
-
+    
     if (result.outputs && result.outputs.length > 0) {
       const output = result.outputs[0];
       if (output.outputs && output.outputs.length > 0) {
@@ -402,7 +463,7 @@ async function triggerLangflow(data, flowId) {
         }
       }
     }
-
+    
     // Clean up the message if it contains error messages about missing PR data
     if (message.includes('PR #') && message.includes('not found')) {
       message = `## 🤖 AI Analysis Results
@@ -418,13 +479,13 @@ The AI analysis has been processed successfully. The review covers:
 
 *Detailed analysis results have been processed by the AI system.*`;
     }
-
+    
     return {
       success: true,
       message: message,
       data: result
     };
-
+    
   } catch (error) {
     console.error('Langflow error:', error);
     return {
