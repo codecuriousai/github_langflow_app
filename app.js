@@ -6,6 +6,18 @@ const { Octokit } = require('@octokit/rest');
 const fs = require('fs');
 const fetch = require('node-fetch');
 
+// Debug: Log package versions
+console.log('Package versions:');
+try {
+  const appPkg = require('@octokit/app/package.json');
+  console.log(`@octokit/app: ${appPkg.version}`);
+} catch (e) { console.log('@octokit/app version: unknown'); }
+
+try {
+  const restPkg = require('@octokit/rest/package.json');
+  console.log(`@octokit/rest: ${restPkg.version}`);
+} catch (e) { console.log('@octokit/rest version: unknown'); }
+
 const app = express();
 
 // Load private key (works both locally and in production)
@@ -100,7 +112,7 @@ webhooks.on('check_run.requested_action', async ({ payload }) => {
   }
 });
 
-// Function to get proper Octokit instance - FIXED VERSION
+// Function to get proper Octokit instance - FOR v14+ @octokit/app
 async function getOctokit() {
   try {
     console.log('Getting Octokit instance...');
@@ -115,37 +127,96 @@ async function getOctokit() {
     
     console.log('Parsed installation ID:', installationId);
     
-    // FIXED: Use the correct method to get an authenticated Octokit instance
-    const octokit = await githubApp.getInstallationOctokit(installationId);
+    // In @octokit/app v14+, we need to use a different approach
+    // Create installation-specific authentication
+    const installationAuth = await githubApp.getInstallationOctokit(installationId);
     
-    console.log('Installation Octokit created successfully');
-    console.log('Octokit type:', typeof octokit);
-    console.log('Octokit keys:', Object.keys(octokit || {}));
+    console.log('Installation auth created');
+    console.log('Auth type:', typeof installationAuth);
+    console.log('Auth keys:', Object.keys(installationAuth || {}));
     
-    if (!octokit) {
-      throw new Error('Failed to create installation Octokit instance');
+    // Check if this is already a full Octokit instance
+    if (installationAuth && installationAuth.rest) {
+      console.log('Got full Octokit instance from getInstallationOctokit');
+      console.log('Has checks:', !!installationAuth.rest.checks);
+      console.log('Has pulls:', !!installationAuth.rest.pulls);
+      console.log('Has issues:', !!installationAuth.rest.issues);
+      
+      if (installationAuth.rest.checks && installationAuth.rest.pulls && installationAuth.rest.issues) {
+        return installationAuth;
+      }
     }
-
-    // Verify the structure - getInstallationOctokit returns a full Octokit instance
+    
+    // Fallback: Create Octokit manually using app authentication
+    console.log('Creating Octokit manually...');
+    
+    // Get app authentication for installation
+    const auth = await githubApp.getInstallationOctokit(installationId).auth({
+      type: 'installation',
+    });
+    
+    if (!auth || !auth.token) {
+      throw new Error('Failed to get installation token');
+    }
+    
+    console.log('Got installation token');
+    
+    // Create full Octokit REST client
+    const octokit = new Octokit({
+      auth: auth.token,
+    });
+    
+    console.log('Manual Octokit REST client created');
+    console.log('Octokit type:', typeof octokit);
     console.log('Has rest:', !!octokit.rest);
     console.log('Has checks:', !!octokit.rest?.checks);
     console.log('Has pulls:', !!octokit.rest?.pulls);
     console.log('Has issues:', !!octokit.rest?.issues);
     
+    // Verify the structure
     if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
-      throw new Error('Octokit instance is missing required REST methods');
+      throw new Error('Manual Octokit REST client is missing required methods');
     }
     
     return octokit;
     
   } catch (error) {
     console.error('Error creating Octokit instance:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    throw error;
+    
+    // Final fallback: Try creating token directly
+    try {
+      console.log('Trying direct token creation fallback...');
+      
+      // Get installation access token directly
+      const appAuth = githubApp.octokit || new Octokit({
+        appId: process.env.GITHUB_APP_ID,
+        privateKey: privateKey,
+      });
+      
+      const installationId = parseInt(process.env.GITHUB_INSTALLATION_ID, 10);
+      
+      const { data: tokenData } = await appAuth.rest.apps.createInstallationAccessToken({
+        installation_id: installationId,
+      });
+      
+      console.log('Direct token created');
+      
+      const octokit = new Octokit({
+        auth: tokenData.token,
+      });
+      
+      // Verify
+      if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
+        throw new Error('Direct token Octokit is missing required methods');
+      }
+      
+      console.log('Direct token fallback successful');
+      return octokit;
+      
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+      throw new Error(`All authentication methods failed. Original: ${error.message}, Fallback: ${fallbackError.message}`);
+    }
   }
 }
 
