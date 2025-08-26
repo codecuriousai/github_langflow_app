@@ -432,7 +432,7 @@ async function handleReviewRequest(payload) {
       updated_at: pr.data.updated_at,
       // Additional data for Langflow tweaks
       tweaks: {
-        "GitHubBranchPRsFetcher-HLWhI": {
+        "GitHubBranchPRsFetcher-2MPWZ": {
           repo_url: `https://github.com/${payload.repository.owner.login}/${payload.repository.name}`,
           branch_name: pr.data.head.ref,
           github_token: "", // Empty as per your test
@@ -605,7 +605,7 @@ async function handleMergeCheck(payload) {
       previous_review: reviewComment ? reviewComment.body : 'No previous review found',
       checks_status: 'pending',
       tweaks: {
-        "GitHubBranchPRsFetcher-HLWhI": {
+        "GitHubOpenPRsFetcher-yZc4z": {
           repo_url: `https://github.com/${payload.repository.owner.login}/${payload.repository.name}`,
           branch_name: pr.data.head.ref,
           github_token: "",
