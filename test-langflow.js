@@ -23,7 +23,7 @@ async function testLangflow() {
     });
     
     const result = await response.json();
-    console.log('Langflow Response:', result);
+    console.log('Langflow Response', result);
     
   } catch (error) {
     console.error('Test failed:', error);
