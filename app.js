@@ -69,7 +69,7 @@ webhooks.on('pull_request.synchronize', async ({ payload }) => {
 // Handle check run actions (button clicks)
 webhooks.on('check_run.requested_action', async ({ payload }) => {
   console.log('Button clicked:', payload.requested_action.identifier);
-  
+
   // Debug: Log the entire payload structure
   console.log('Full check_run payload:', JSON.stringify({
     action: payload.action,
@@ -85,7 +85,7 @@ webhooks.on('check_run.requested_action', async ({ payload }) => {
       owner: payload.repository.owner.login
     }
   }, null, 2));
-  
+
   if (payload.requested_action.identifier === 'review_pr') {
     await handleReviewRequest(payload);
   } else if (payload.requested_action.identifier === 'check_merge') {
@@ -136,61 +136,91 @@ async function addReviewButton(payload) {
 
 // Function to handle review request
 async function handleReviewRequest(payload) {
+  let octokit;
+
   try {
     console.log('Starting AI review...');
     console.log('Payload check_run:', JSON.stringify(payload.check_run, null, 2));
-    
-    const octokit = await githubApp.getInstallationOctokit(
-      process.env.GITHUB_INSTALLATION_ID
-    );
+
+    // Initialize Octokit
+    try {
+      octokit = await githubApp.getInstallationOctokit(
+        process.env.GITHUB_INSTALLATION_ID
+      );
+      console.log('Octokit initialized successfully');
+    } catch (octokitError) {
+      console.error('Failed to initialize Octokit:', octokitError);
+      throw new Error(`Authentication failed: ${octokitError.message}`);
+    }
 
     // Update check run to show "in progress"
-    await octokit.rest.checks.update({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
-      check_run_id: payload.check_run.id,
-      status: 'in_progress',
-      output: {
-        title: '🔄 AI Review in Progress',
-        summary: 'Analyzing your code with Langflow agents...',
-      },
-    });
+    try {
+      await octokit.rest.checks.update({
+        owner: payload.repository.owner.login,
+        repo: payload.repository.name,
+        check_run_id: payload.check_run.id,
+        status: 'in_progress',
+        output: {
+          title: '🔄 AI Review in Progress',
+          summary: 'Analyzing your code with Langflow agents...',
+        },
+      });
+      console.log('Check run updated to in_progress');
+    } catch (checkError) {
+      console.error('Failed to update check run:', checkError);
+      // Continue anyway, this is not critical
+    }
 
     // Get PR number with error handling
     let prNumber;
     if (payload.check_run.pull_requests && payload.check_run.pull_requests.length > 0) {
       prNumber = payload.check_run.pull_requests[0].number;
+      console.log(`Got PR number from payload: ${prNumber}`);
     } else {
       // Alternative: Get PR from check run head SHA
       console.log('No pull_requests in check_run, searching by SHA...');
-      const pulls = await octokit.rest.pulls.list({
+      try {
+        const pulls = await octokit.rest.pulls.list({
+          owner: payload.repository.owner.login,
+          repo: payload.repository.name,
+          head: `${payload.repository.owner.login}:${payload.check_run.head_sha}`,
+          state: 'open'
+        });
+
+        if (pulls.data.length === 0) {
+          throw new Error('No open pull request found for this check run');
+        }
+
+        prNumber = pulls.data[0].number;
+        console.log(`Found PR #${prNumber} from SHA search`);
+      } catch (pullError) {
+        console.error('Failed to find PR by SHA:', pullError);
+        throw new Error(`Cannot find PR for this check run: ${pullError.message}`);
+      }
+    }
+
+    console.log(`Processing PR #${prNumber}`);
+    // Get PR details
+    let pr, files;
+    try {
+      pr = await octokit.rest.pulls.get({
         owner: payload.repository.owner.login,
         repo: payload.repository.name,
-        head: `${payload.repository.owner.login}:${payload.check_run.head_sha}`,
-        state: 'open'
+        pull_number: prNumber,
       });
-      
-      if (pulls.data.length === 0) {
-        throw new Error('No open pull request found for this check run');
-      }
-      
-      prNumber = pulls.data[0].number;
-      console.log(`Found PR #${prNumber} from SHA search`);
-    }
-    
-    console.log(`Processing PR #${prNumber}`);
-    const pr = await octokit.rest.pulls.get({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
-      pull_number: prNumber,
-    });
+      console.log('PR details retrieved successfully');
 
-    // Get PR files
-    const files = await octokit.rest.pulls.listFiles({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
-      pull_number: prNumber,
-    });
+      // Get PR files
+      files = await octokit.rest.pulls.listFiles({
+        owner: payload.repository.owner.login,
+        repo: payload.repository.name,
+        pull_number: prNumber,
+      });
+      console.log(`Retrieved ${files.data.length} files from PR`);
+    } catch (prError) {
+      console.error('Failed to get PR details or files:', prError);
+      throw new Error(`Failed to retrieve PR data: ${prError.message}`);
+    }
 
     // Enhanced data format for Langflow
     const prData = {
@@ -230,43 +260,58 @@ async function handleReviewRequest(payload) {
       }
     };
 
+    console.log('Prepared PR data for Langflow:', JSON.stringify(prData, null, 2));
+
     // Trigger Langflow review agent
+    console.log('Calling Langflow...');
     const reviewResult = await triggerLangflow(prData, process.env.LANGFLOW_REVIEW_FLOW_ID);
+    console.log('Langflow response received:', reviewResult);
 
     if (reviewResult.success) {
       // Update check run with results
-      await octokit.rest.checks.update({
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
-        check_run_id: payload.check_run.id,
-        status: 'completed',
-        conclusion: 'neutral',
-        output: {
-          title: '✅ AI Review Complete',
-          summary: 'Code review completed successfully',
-          text: reviewResult.message || 'Review analysis completed',
-        },
-        actions: [
-          {
-            label: '🚀 Check Merge Readiness',
-            description: 'Analyze if PR is ready to merge',
-            identifier: 'check_merge',
+      try {
+        await octokit.rest.checks.update({
+          owner: payload.repository.owner.login,
+          repo: payload.repository.name,
+          check_run_id: payload.check_run.id,
+          status: 'completed',
+          conclusion: 'neutral',
+          output: {
+            title: '✅ AI Review Complete',
+            summary: 'Code review completed successfully',
+            text: reviewResult.message || 'Review analysis completed',
           },
-        ],
-      });
+          actions: [
+            {
+              label: '🚀 Check Merge Readiness',
+              description: 'Analyze if PR is ready to merge',
+              identifier: 'check_merge',
+            },
+          ],
+        });
+        console.log('Check run updated with results');
+      } catch (updateError) {
+        console.error('Failed to update check run with results:', updateError);
+        // Continue to add comment anyway
+      }
 
       // Also add detailed comment to PR
-      await octokit.rest.issues.createComment({
-        owner: payload.repository.owner.login,
-        repo: payload.repository.name,
-        issue_number: prNumber,
-        body: `## 🤖 AI Code Review Results
+      try {
+        await octokit.rest.issues.createComment({
+          owner: payload.repository.owner.login,
+          repo: payload.repository.name,
+          issue_number: prNumber,
+          body: `## 🤖 AI Code Review Results
 
 ${reviewResult.message || 'Review completed successfully'}
 
 ---
 *Analysis powered by Langflow AI • Click "Check Merge Readiness" above for final assessment*`,
-      });
+        });
+        console.log('Comment added to PR');
+      } catch (commentError) {
+        console.error('Failed to add comment to PR:', commentError);
+      }
 
       console.log('Review completed successfully');
     } else {
@@ -275,24 +320,30 @@ ${reviewResult.message || 'Review completed successfully'}
 
   } catch (error) {
     console.error('Error during review:', error);
-    
-    // Update check run with error
-    const octokit = await githubApp.getInstallationOctokit(
-      process.env.GITHUB_INSTALLATION_ID
-    );
-    
-    await octokit.rest.checks.update({
-      owner: payload.repository.owner.login,
-      repo: payload.repository.name,
-      check_run_id: payload.check_run.id,
-      status: 'completed',
-      conclusion: 'failure',
-      output: {
-        title: '❌ AI Review Failed',
-        summary: 'There was an error during the review process',
-        text: `Error: ${error.message}`,
-      },
-    });
+    console.error('Error stack:', error.stack);
+
+    // Try to update check run with error if octokit is available
+    if (octokit) {
+      try {
+        await octokit.rest.checks.update({
+          owner: payload.repository.owner.login,
+          repo: payload.repository.name,
+          check_run_id: payload.check_run.id,
+          status: 'completed',
+          conclusion: 'failure',
+          output: {
+            title: '❌ AI Review Failed',
+            summary: 'There was an error during the review process',
+            text: `Error: ${error.message}`,
+          },
+        });
+        console.log('Updated check run with error status');
+      } catch (errorUpdateError) {
+        console.error('Failed to update check run with error:', errorUpdateError);
+      }
+    } else {
+      console.log('Cannot update check run - octokit not available');
+    }
   }
 }
 
@@ -301,7 +352,7 @@ async function handleMergeCheck(payload) {
   try {
     console.log('Starting merge readiness check...');
     console.log('Merge check payload:', JSON.stringify(payload.check_run, null, 2));
-    
+
     const octokit = await githubApp.getInstallationOctokit(
       process.env.GITHUB_INSTALLATION_ID
     );
@@ -319,17 +370,17 @@ async function handleMergeCheck(payload) {
         head: `${payload.repository.owner.login}:${payload.check_run.head_sha}`,
         state: 'open'
       });
-      
+
       if (pulls.data.length === 0) {
         throw new Error('No open pull request found for this check run');
       }
-      
+
       prNumber = pulls.data[0].number;
       console.log(`Found PR #${prNumber} from SHA search for merge check`);
     }
-    
+
     console.log(`Processing merge check for PR #${prNumber}`);
-    
+
     // Get PR details and previous review
     const pr = await octokit.rest.pulls.get({
       owner: payload.repository.owner.login,
@@ -344,7 +395,7 @@ async function handleMergeCheck(payload) {
       issue_number: prNumber,
     });
 
-    const reviewComment = comments.data.find(comment => 
+    const reviewComment = comments.data.find(comment =>
       comment.body.includes('AI Code Review Results')
     );
 
@@ -377,7 +428,7 @@ async function handleMergeCheck(payload) {
 
     if (mergeResult.success) {
       const isReady = mergeResult.message.toLowerCase().includes('ready');
-      
+
       await octokit.rest.checks.update({
         owner: payload.repository.owner.login,
         repo: payload.repository.name,
@@ -416,20 +467,20 @@ async function triggerLangflow(data, flowId) {
   try {
     console.log(`Triggering Langflow Astra flow: ${flowId}`);
     console.log(`Base endpoint: ${process.env.LANGFLOW_ENDPOINT}`);
-    
+
     // Langflow Astra API endpoint format
     const apiUrl = `${process.env.LANGFLOW_ENDPOINT}/run/${flowId}`;
     console.log(`Full API URL: ${apiUrl}`);
-    
+
     // Use the format that matches your working test
     const requestBody = {
       body: JSON.stringify(data),
       session_id: `github_${Date.now()}`,
       tweaks: data.tweaks || {}
     };
-    
+
     console.log('Enhanced request body:', JSON.stringify(requestBody, null, 2));
-    
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -441,7 +492,7 @@ async function triggerLangflow(data, flowId) {
     });
 
     console.log(`Response status: ${response.status}`);
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Langflow API error: ${response.status} - ${errorText}`);
@@ -450,10 +501,10 @@ async function triggerLangflow(data, flowId) {
 
     const result = await response.json();
     console.log('Langflow response structure:', JSON.stringify(result, null, 2));
-    
+
     // Extract message from Langflow Astra response format
     let message = 'Analysis completed successfully';
-    
+
     if (result.outputs && result.outputs.length > 0) {
       const output = result.outputs[0];
       if (output.outputs && output.outputs.length > 0) {
@@ -463,7 +514,7 @@ async function triggerLangflow(data, flowId) {
         }
       }
     }
-    
+
     // Clean up the message if it contains error messages about missing PR data
     if (message.includes('PR #') && message.includes('not found')) {
       message = `## 🤖 AI Analysis Results
@@ -479,13 +530,13 @@ The AI analysis has been processed successfully. The review covers:
 
 *Detailed analysis results have been processed by the AI system.*`;
     }
-    
+
     return {
       success: true,
       message: message,
       data: result
     };
-    
+
   } catch (error) {
     console.error('Langflow error:', error);
     return {
@@ -500,10 +551,13 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🤖 AI PR Review Bot running on port ${PORT}`);
   console.log(`Webhook URL: http://localhost:${PORT}/webhooks`);
-  console.log(`📋 Environment check:`);
-  console.log(`   - GitHub App ID: ${process.env.GITHUB_APP_ID ? '✅' : '❌'}`);
-  console.log(`   - Webhook Secret: ${process.env.GITHUB_WEBHOOK_SECRET ? '✅' : '❌'}`);
-  console.log(`   - Installation ID: ${process.env.GITHUB_INSTALLATION_ID ? '✅' : '❌'}`);
-  console.log(`   - Private Key: ${process.env.GITHUB_PRIVATE_KEY_PATH ? '✅' : '❌'}`);
-  console.log(`   - Langflow Endpoint: ${process.env.LANGFLOW_ENDPOINT ? '✅' : '❌'}`);
+
+  // Debug environment variables
+  console.log('Environment check:');
+  console.log(`GITHUB_APP_ID: ${process.env.GITHUB_APP_ID ? 'SET' : 'NOT SET'}`);
+  console.log(`GITHUB_INSTALLATION_ID: ${process.env.GITHUB_INSTALLATION_ID ? 'SET' : 'NOT SET'}`);
+  console.log(`GITHUB_PRIVATE_KEY: ${process.env.GITHUB_PRIVATE_KEY ? 'SET' : 'NOT SET'}`);
+  console.log(`GITHUB_PRIVATE_KEY_PATH: ${process.env.GITHUB_PRIVATE_KEY_PATH ? 'SET' : 'NOT SET'}`);
+  console.log(`LANGFLOW_ENDPOINT: ${process.env.LANGFLOW_ENDPOINT ? 'SET' : 'NOT SET'}`);
+  console.log(`LANGFLOW_API_KEY: ${process.env.LANGFLOW_API_KEY ? 'SET' : 'NOT SET'}`);
 });
