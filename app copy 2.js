@@ -364,3 +364,5 @@ app.listen(PORT, () => {
   console.log(`🤖 AI PR Review Bot running on port ${PORT}`);
   console.log(`Webhook URL: http://localhost:${PORT}/webhooks`);
 });
+
+// Create GitHub App instance
