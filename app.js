@@ -477,3 +477,6 @@ app.listen(PORT, () => {
   console.log(`   - Private Key: ${process.env.GITHUB_PRIVATE_KEY_PATH ? '✅' : '❌'}`);
   console.log(`   - Langflow Endpoint: ${process.env.LANGFLOW_ENDPOINT ? '✅' : '❌'}`);
 });
+
+// check PR raise
+console.log("Checking PR raise...");
