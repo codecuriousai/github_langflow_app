@@ -369,7 +369,6 @@ ${reviewResult.message || 'Review completed successfully'}
   }
 }
 
-// Handle merge check (simplified version)
 async function handleMergeCheck(payload) {
   try {
     console.log('🚀 Starting merge check...');
