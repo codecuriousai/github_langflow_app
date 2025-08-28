@@ -123,7 +123,7 @@ webhooks.on('pull_request.synchronize', async ({ payload }) => {
 // Handle check run actions (button clicks)
 webhooks.on('check_run.requested_action', async ({ payload }) => {
   console.log('Button clicked:', payload.requested_action.identifier);
-  
+
   // Debug: Log the entire payload structure
   console.log('Full check_run payload:', JSON.stringify({
     action: payload.action,
@@ -139,7 +139,7 @@ webhooks.on('check_run.requested_action', async ({ payload }) => {
       owner: payload.repository.owner.login
     }
   }, null, 2));
-  
+
   if (payload.requested_action.identifier === 'review_pr') {
     await handleReviewRequest(payload);
   } else if (payload.requested_action.identifier === 'check_merge') {
@@ -157,41 +157,41 @@ async function fetchWithRetry(url, options, retries = CONFIG.langflow.retries) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`Attempt ${attempt}/${retries} to call ${url}`);
-      
+
       // Create AbortController for timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), CONFIG.langflow.timeout);
-      
+
       const response = await fetch(url, {
         ...options,
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       // If successful, return immediately
       if (response.ok) {
         console.log(`Request successful on attempt ${attempt}`);
         return response;
       }
-      
+
       // If it's a server error (5xx), retry
       if (response.status >= 500 && attempt < retries) {
         console.log(`Server error ${response.status}, retrying in ${CONFIG.langflow.retryDelay}ms...`);
         await sleep(CONFIG.langflow.retryDelay);
         continue;
       }
-      
+
       // For client errors (4xx), don't retry
       return response;
-      
+
     } catch (error) {
       console.log(`Attempt ${attempt} failed:`, error.message);
-      
+
       if (attempt === retries) {
         throw error;
       }
-      
+
       // Wait before retry
       console.log(`Waiting ${CONFIG.langflow.retryDelay}ms before retry...`);
       await sleep(CONFIG.langflow.retryDelay);
@@ -205,47 +205,47 @@ async function getOctokit() {
     console.log('Getting Octokit instance...');
     console.log('GitHub App ID:', process.env.GITHUB_APP_ID);
     console.log('Installation ID:', process.env.GITHUB_INSTALLATION_ID);
-    
+
     // Parse installation ID as integer (required by v14+)
     const installationId = parseInt(process.env.GITHUB_INSTALLATION_ID, 10);
     if (isNaN(installationId)) {
       throw new Error(`Invalid installation ID: ${process.env.GITHUB_INSTALLATION_ID}`);
     }
-    
+
     console.log('Parsed installation ID:', installationId);
-    
+
     // Try the new @octokit/app v14+ approach first
     try {
       console.log('Trying @octokit/app v14+ getInstallationOctokit...');
       const installationOctokit = await githubApp.getInstallationOctokit(installationId);
-      
+
       console.log('Installation Octokit created via getInstallationOctokit');
       console.log('Type:', typeof installationOctokit);
       console.log('Has rest:', !!installationOctokit.rest);
       console.log('Has checks:', !!installationOctokit.rest?.checks);
       console.log('Has pulls:', !!installationOctokit.rest?.pulls);
       console.log('Has issues:', !!installationOctokit.rest?.issues);
-      
+
       // Verify the structure - if it's a complete Octokit instance, return it
-      if (installationOctokit && installationOctokit.rest && 
-          installationOctokit.rest.checks && installationOctokit.rest.pulls) {
+      if (installationOctokit && installationOctokit.rest &&
+        installationOctokit.rest.checks && installationOctokit.rest.pulls) {
         console.log('Successfully got full Octokit instance from getInstallationOctokit');
         return installationOctokit;
       } else {
         throw new Error('getInstallationOctokit returned incomplete instance');
       }
-      
+
     } catch (getInstallationError) {
       console.log('getInstallationOctokit failed:', getInstallationError.message);
       console.log('Falling back to manual JWT approach...');
     }
-    
+
     // Fallback: Manual JWT token creation approach
     console.log('Creating JWT token manually...');
-    
+
     // Import JWT library for manual token creation
     const jwt = require('jsonwebtoken');
-    
+
     // Create JWT for GitHub App
     const now = Math.floor(Date.now() / 1000);
     const payload = {
@@ -253,45 +253,45 @@ async function getOctokit() {
       exp: now + (10 * 60), // expires in 10 minutes
       iss: process.env.GITHUB_APP_ID,
     };
-    
+
     const appToken = jwt.sign(payload, privateKey, { algorithm: 'RS256' });
     console.log('JWT created successfully');
-    
+
     // Create app-level Octokit instance with JWT
     const appOctokit = new Octokit({
       auth: appToken,
     });
-    
+
     console.log('App-level Octokit created');
-    
+
     // Create installation access token
     const { data: tokenData } = await appOctokit.rest.apps.createInstallationAccessToken({
       installation_id: installationId,
     });
-    
+
     console.log('Installation access token created via JWT');
     console.log('Token expires at:', tokenData.expires_at);
-    
+
     // Create installation Octokit instance with the token
     const octokit = new Octokit({
       auth: tokenData.token,
     });
-    
+
     console.log('Installation Octokit REST client created via JWT');
     console.log('Octokit type:', typeof octokit);
     console.log('Has rest:', !!octokit.rest);
     console.log('Has checks:', !!octokit.rest?.checks);
     console.log('Has pulls:', !!octokit.rest?.pulls);
     console.log('Has issues:', !!octokit.rest?.issues);
-    
+
     // Verify the structure
     if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
       throw new Error('JWT-created Octokit is missing required REST methods');
     }
-    
+
     console.log('Successfully created installation Octokit with JWT approach');
     return octokit;
-    
+
   } catch (error) {
     console.error('All Octokit creation methods failed:', error);
     console.error('Error details:', {
@@ -299,33 +299,33 @@ async function getOctokit() {
       name: error.name,
       stack: error.stack ? error.stack.split('\n').slice(0, 5).join('\n') : 'No stack'
     });
-    
+
     // Final attempt: Try using @octokit/auth-app directly
     try {
       console.log('Final attempt: Using @octokit/auth-app directly...');
       const { createAppAuth } = require('@octokit/auth-app');
-      
+
       const auth = createAppAuth({
         appId: process.env.GITHUB_APP_ID,
         privateKey: privateKey,
         installationId: parseInt(process.env.GITHUB_INSTALLATION_ID, 10),
       });
-      
+
       const installationAuth = await auth({ type: 'installation' });
       console.log('Installation auth created with @octokit/auth-app');
-      
+
       const octokit = new Octokit({
         auth: installationAuth.token,
       });
-      
+
       // Verify
       if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
         throw new Error('@octokit/auth-app created Octokit is missing required methods');
       }
-      
+
       console.log('@octokit/auth-app approach successful');
       return octokit;
-      
+
     } catch (authAppError) {
       console.error('@octokit/auth-app approach also failed:', authAppError);
       throw new Error(`All authentication methods failed. Original: ${error.message}, Auth-app: ${authAppError.message}`);
@@ -367,7 +367,7 @@ async function addReviewButton(payload) {
     };
 
     console.log('Creating check with params:', JSON.stringify(checkParams, null, 2));
-    
+
     await octokit.rest.checks.create(checkParams);
 
     console.log('Review button added successfully');
@@ -380,21 +380,21 @@ async function addReviewButton(payload) {
 // Function to handle review request - IMPROVED ERROR HANDLING
 async function handleReviewRequest(payload) {
   let octokit;
-  
+
   try {
     console.log('Starting AI review...');
     console.log('Payload check_run:', JSON.stringify(payload.check_run, null, 2));
-    
+
     // Initialize Octokit with better error handling
     try {
       octokit = await getOctokit();
       console.log('Octokit initialized successfully');
-      
+
       // Verify Octokit structure
       if (!octokit.rest || !octokit.rest.checks || !octokit.rest.pulls) {
         throw new Error('Octokit instance is missing required methods');
       }
-      
+
     } catch (octokitError) {
       console.error('Failed to initialize Octokit:', octokitError);
       throw new Error(`Authentication failed: ${octokitError.message}`);
@@ -413,7 +413,7 @@ async function handleReviewRequest(payload) {
           text: `⏱️ This may take up to ${CONFIG.langflow.timeout / 1000} seconds. Please wait...`,
         },
       };
-      
+
       console.log('Updating check run with params:', JSON.stringify(updateParams, null, 2));
       await octokit.rest.checks.update(updateParams);
       console.log('Check run updated to in_progress');
@@ -438,14 +438,14 @@ async function handleReviewRequest(payload) {
           head: `${payload.repository.owner.login}:${payload.check_run.head_sha}`,
           state: 'open'
         };
-        
+
         console.log('Searching for pulls with params:', JSON.stringify(pullsParams, null, 2));
         const pulls = await octokit.rest.pulls.list(pullsParams);
-        
+
         if (pulls.data.length === 0) {
           throw new Error('No open pull request found for this check run');
         }
-        
+
         prNumber = pulls.data[0].number;
         console.log(`Found PR #${prNumber} from SHA search`);
       } catch (pullError) {
@@ -454,9 +454,9 @@ async function handleReviewRequest(payload) {
         throw new Error(`Cannot find PR for this check run: ${pullError.message}`);
       }
     }
-    
+
     console.log(`Processing PR #${prNumber}`);
-    
+
     // Get PR details
     let pr, files;
     try {
@@ -465,7 +465,7 @@ async function handleReviewRequest(payload) {
         repo: payload.repository.name,
         pull_number: prNumber,
       };
-      
+
       console.log('Getting PR with params:', JSON.stringify(prParams, null, 2));
       pr = await octokit.rest.pulls.get(prParams);
       console.log('PR details retrieved successfully');
@@ -476,7 +476,7 @@ async function handleReviewRequest(payload) {
         repo: payload.repository.name,
         pull_number: prNumber,
       };
-      
+
       console.log('Getting files with params:', JSON.stringify(filesParams, null, 2));
       files = await octokit.rest.pulls.listFiles(filesParams);
       console.log(`Retrieved ${files.data.length} files from PR`);
@@ -555,7 +555,7 @@ async function handleReviewRequest(payload) {
             },
           ],
         };
-        
+
         console.log('Updating check run with success');
         await octokit.rest.checks.update(successUpdateParams);
         console.log('Check run updated with results');
@@ -578,7 +578,7 @@ ${reviewResult.message || 'Review completed successfully'}
 ---
 *Analysis powered by Langflow AI • Click "Check Merge Readiness" above for final assessment*`,
         };
-        
+
         console.log('Adding comment to PR');
         await octokit.rest.issues.createComment(commentParams);
         console.log('Comment added to PR');
@@ -591,7 +591,7 @@ ${reviewResult.message || 'Review completed successfully'}
     } else {
       // Handle Langflow failure gracefully
       let errorMessage = reviewResult.error || 'Langflow request failed';
-      
+
       // Provide user-friendly error messages
       if (errorMessage.includes('504') || errorMessage.includes('GATEWAY_TIMEOUT')) {
         errorMessage = 'The AI service is currently experiencing high load. Please try again in a few minutes.';
@@ -600,14 +600,14 @@ ${reviewResult.message || 'Review completed successfully'}
       } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
         errorMessage = 'The AI service is temporarily unavailable. Please try again later.';
       }
-      
+
       throw new Error(errorMessage);
     }
 
   } catch (error) {
     console.error('Error during review:', error);
     console.error('Error stack:', error.stack);
-    
+
     // Try to update check run with error if octokit is available
     if (octokit && octokit.rest && octokit.rest.checks) {
       try {
@@ -615,15 +615,15 @@ ${reviewResult.message || 'Review completed successfully'}
         let conclusion = 'failure';
         let title = '❌ AI Review Failed';
         let summary = 'There was an error during the review process';
-        
+
         // For timeout/connectivity issues, use neutral conclusion
-        if (error.message.includes('timeout') || error.message.includes('504') || 
-            error.message.includes('temporarily unavailable') || error.message.includes('high load')) {
+        if (error.message.includes('timeout') || error.message.includes('504') ||
+          error.message.includes('temporarily unavailable') || error.message.includes('high load')) {
           conclusion = 'neutral';
           title = '⚠️ AI Review Unavailable';
           summary = 'The AI service is currently unavailable';
         }
-        
+
         const errorUpdateParams = {
           owner: payload.repository.owner.login,
           repo: payload.repository.name,
@@ -643,7 +643,7 @@ ${reviewResult.message || 'Review completed successfully'}
             },
           ],
         };
-        
+
         console.log('Updating check run with error');
         await octokit.rest.checks.update(errorUpdateParams);
         console.log('Updated check run with error status');
@@ -662,7 +662,7 @@ async function handleMergeCheck(payload) {
   try {
     console.log('Starting merge readiness check...');
     console.log('Merge check payload:', JSON.stringify(payload.check_run, null, 2));
-    
+
     const octokit = await getOctokit();
 
     // Get PR number with error handling
@@ -678,17 +678,17 @@ async function handleMergeCheck(payload) {
         head: `${payload.repository.owner.login}:${payload.check_run.head_sha}`,
         state: 'open'
       });
-      
+
       if (pulls.data.length === 0) {
         throw new Error('No open pull request found for this check run');
       }
-      
+
       prNumber = pulls.data[0].number;
       console.log(`Found PR #${prNumber} from SHA search for merge check`);
     }
-    
+
     console.log(`Processing merge check for PR #${prNumber}`);
-    
+
     // Update check to in progress
     await octokit.rest.checks.update({
       owner: payload.repository.owner.login,
@@ -700,7 +700,7 @@ async function handleMergeCheck(payload) {
         summary: 'Analyzing PR for merge readiness...',
       },
     });
-    
+
     // Get PR details and previous review
     const pr = await octokit.rest.pulls.get({
       owner: payload.repository.owner.login,
@@ -715,7 +715,7 @@ async function handleMergeCheck(payload) {
       issue_number: prNumber,
     });
 
-    const reviewComment = comments.data.find(comment => 
+    const reviewComment = comments.data.find(comment =>
       comment.body.includes('AI Code Review Results')
     );
 
@@ -748,7 +748,7 @@ async function handleMergeCheck(payload) {
 
     if (mergeResult.success) {
       const isReady = mergeResult.message.toLowerCase().includes('ready');
-      
+
       await octokit.rest.checks.update({
         owner: payload.repository.owner.login,
         repo: payload.repository.name,
@@ -781,7 +781,7 @@ ${mergeResult.message || 'Analysis completed'}
 
   } catch (error) {
     console.error('Error during merge check:', error);
-    
+
     // Update check with error
     if (octokit && octokit.rest && octokit.rest.checks) {
       try {
@@ -809,54 +809,68 @@ async function triggerLangflow(data, flowId) {
   try {
     console.log(`Triggering Langflow Astra flow: ${flowId}`);
     console.log(`Base endpoint: ${process.env.LANGFLOW_ENDPOINT}`);
-    
+
     // Validate required environment variables
     if (!process.env.LANGFLOW_ENDPOINT) {
       throw new Error('LANGFLOW_ENDPOINT environment variable is not set');
     }
-    
+
     if (!process.env.LANGFLOW_API_KEY) {
       throw new Error('LANGFLOW_API_KEY environment variable is not set');
     }
-    
+
     if (!flowId) {
       throw new Error('Flow ID is required but not provided');
     }
-    
+
     // Langflow Astra API endpoint format
     const apiUrl = `${process.env.LANGFLOW_ENDPOINT}/run/${flowId}`;
     console.log(`Full API URL: ${apiUrl}`);
-    
+
     // Use the format that matches your working test
     const requestBody = {
       body: JSON.stringify(data),
       session_id: `github_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       tweaks: data.tweaks || {}
     };
-    
+
     console.log('Request body prepared, size:', JSON.stringify(requestBody).length, 'characters');
-    
+
     // Prepare request options
+    // const requestOptions = {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //     'Authorization': `Bearer ${process.env.LANGFLOW_API_KEY}`,
+    //     'User-Agent': 'GitHub-App-Bot/1.0',
+    //     'Accept': 'application/json',
+    //   },
+    //   body: JSON.stringify(requestBody),
+    // };
+
     const requestOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.LANGFLOW_API_KEY}`,
-        'User-Agent': 'GitHub-App-Bot/1.0',
-        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
       body: JSON.stringify(requestBody),
     };
-    
+    await sleep(Math.random() * 3000 + 2000);
     console.log('Making request to Langflow...');
     console.log('Request headers:', JSON.stringify(requestOptions.headers, null, 2));
-    
+
     // Make the request with retry logic
     const response = await fetchWithRetry(apiUrl, requestOptions);
-    
+
     console.log(`Response status: ${response.status}`);
     console.log(`Response headers:`, JSON.stringify(Object.fromEntries(response.headers), null, 2));
-    
+
     if (!response.ok) {
       let errorText = '';
       try {
@@ -865,10 +879,10 @@ async function triggerLangflow(data, flowId) {
       } catch (textError) {
         console.error('Could not read error response text:', textError.message);
       }
-      
+
       // Provide more specific error messages based on status codes
       let errorMessage = `Langflow API error: ${response.status} ${response.statusText}`;
-      
+
       switch (response.status) {
         case 400:
           errorMessage = 'Bad request to Langflow API. Please check the data format.';
@@ -898,11 +912,11 @@ async function triggerLangflow(data, flowId) {
           errorMessage = 'Gateway timeout. Langflow is taking too long to respond.';
           break;
       }
-      
+
       if (errorText) {
         errorMessage += ` Details: ${errorText.substring(0, 200)}`;
       }
-      
+
       throw new Error(errorMessage);
     }
 
@@ -916,10 +930,10 @@ async function triggerLangflow(data, flowId) {
       console.error('Raw response:', responseText.substring(0, 500));
       throw new Error('Invalid JSON response from Langflow API');
     }
-    
+
     // Extract message from Langflow Astra response format
     let message = 'Analysis completed successfully';
-    
+
     try {
       if (result.outputs && result.outputs.length > 0) {
         const output = result.outputs[0];
@@ -930,7 +944,7 @@ async function triggerLangflow(data, flowId) {
           }
         }
       }
-      
+
       // Alternative response format handling
       if (message === 'Analysis completed successfully' && result.result) {
         if (typeof result.result === 'string') {
@@ -941,17 +955,17 @@ async function triggerLangflow(data, flowId) {
           message = result.result.message;
         }
       }
-      
+
       // Another alternative format
       if (message === 'Analysis completed successfully' && result.data && result.data.text) {
         message = result.data.text;
       }
-      
+
     } catch (extractError) {
       console.error('Error extracting message from response:', extractError.message);
       console.log('Using default success message');
     }
-    
+
     // Clean up the message if it contains error messages about missing PR data
     if (message.includes('PR #') && message.includes('not found')) {
       message = `## 🤖 AI Analysis Results
@@ -967,21 +981,21 @@ The AI analysis has been processed successfully. The review covers:
 
 *Detailed analysis results have been processed by the AI system.*`;
     }
-    
+
     // Ensure message is not too long for GitHub API
     if (message.length > 65000) {
       message = message.substring(0, 65000) + '\n\n*[Message truncated due to length]*';
     }
-    
+
     console.log('Successfully processed Langflow response');
     console.log('Extracted message length:', message.length);
-    
+
     return {
       success: true,
       message: message,
       data: result
     };
-    
+
   } catch (error) {
     console.error('Langflow error details:', {
       message: error.message,
@@ -989,10 +1003,10 @@ The AI analysis has been processed successfully. The review covers:
       code: error.code,
       stack: error.stack ? error.stack.split('\n').slice(0, 3).join('\n') : 'No stack trace'
     });
-    
+
     // Categorize errors for better user experience
     let userFriendlyMessage = error.message;
-    
+
     if (error.name === 'AbortError' || error.message.includes('timeout')) {
       userFriendlyMessage = 'The AI analysis timed out. This usually happens when the service is overloaded. Please try again in a few minutes.';
     } else if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
@@ -1004,7 +1018,7 @@ The AI analysis has been processed successfully. The review covers:
     } else if (error.message.includes('404')) {
       userFriendlyMessage = 'The specified AI flow was not found. Please check the flow configuration.';
     }
-    
+
     return {
       success: false,
       error: userFriendlyMessage,
@@ -1044,7 +1058,7 @@ app.listen(PORT, () => {
   console.log(`🤖 AI PR Review Bot running on port ${PORT}`);
   console.log(`Webhook URL: http://localhost:${PORT}/webhooks`);
   console.log(`Health check: http://localhost:${PORT}/`);
-  
+
   // Debug environment variables
   console.log('\n=== Environment Configuration ===');
   console.log(`GITHUB_APP_ID: ${process.env.GITHUB_APP_ID ? 'SET' : 'NOT SET'}`);
@@ -1055,14 +1069,14 @@ app.listen(PORT, () => {
   console.log(`LANGFLOW_API_KEY: ${process.env.LANGFLOW_API_KEY ? 'SET' : 'NOT SET'}`);
   console.log(`LANGFLOW_REVIEW_FLOW_ID: ${process.env.LANGFLOW_REVIEW_FLOW_ID ? 'SET' : 'NOT SET'}`);
   console.log(`LANGFLOW_MERGE_CHECK_FLOW_ID: ${process.env.LANGFLOW_MERGE_CHECK_FLOW_ID ? 'SET' : 'NOT SET'}`);
-  
+
   // Configuration summary
   console.log('\n=== Langflow Configuration ===');
   console.log(`Timeout: ${CONFIG.langflow.timeout}ms`);
   console.log(`Retries: ${CONFIG.langflow.retries}`);
   console.log(`Retry Delay: ${CONFIG.langflow.retryDelay}ms`);
   console.log(`Health Check Timeout: ${CONFIG.langflow.healthCheckTimeout}ms`);
-  
+
   console.log('\n=== Bot Ready ===');
   console.log('Waiting for webhook events...');
 });
