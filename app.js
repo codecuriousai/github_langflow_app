@@ -46,7 +46,7 @@ if (process.env.GITHUB_PRIVATE_KEY) {
 // Create GitHub App instance
 console.log('Initializing GitHub App...');
 console.log('App ID:', process.env.GITHUB_APP_ID);
-console.log('Private key length:', privateKey ? privateKey.length : 'NOT SET');
+console.log('Private key length: [REDACTED]');
 
 const githubApp = new App({
   appId: process.env.GITHUB_APP_ID,
@@ -866,7 +866,7 @@ async function triggerLangflow(data, flowId) {
     console.log('Request headers:', JSON.stringify(requestOptions.headers, null, 2));
 
     // Make the request with retry logic
-    const response = await fetchWithRetry(apiUrl, requestOptions);
+    const response = const response = await fetchWithRetry(apiUrl, requestOptions).catch(err => console.error(err));
 
     console.log(`Response status: ${response.status}`);
     console.log(`Response headers:`, JSON.stringify(Object.fromEntries(response.headers), null, 2));
